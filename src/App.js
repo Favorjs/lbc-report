@@ -8,7 +8,7 @@ import {
   Select, MenuItem, InputLabel, FormControl, Snackbar, Alert, CircularProgress,
   AppBar, Toolbar, IconButton, Drawer, List, ListItem, ListItemText, Divider,
  Grid, Dialog, DialogTitle, DialogContent, DialogActions,Card,
-  CardContent
+  CardContent,Chip
 } from '@mui/material';
 
 
@@ -84,6 +84,8 @@ const MemberForm = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+// In your MemberForm component
+
 const handleSubmit = async (e) => {
   e.preventDefault();
   try {
@@ -91,28 +93,27 @@ const handleSubmit = async (e) => {
     setError('');
     setSuccess('');
 
-    // Trim and validate inputs
-    const name = formData.name.trim();
-    const phone = formData.phone.trim();
-    const group = user.role === 'admin' ? formData.group : user.group;
-
-    if (!name || !phone || !group) {
-      throw new Error('All fields are required');
+    // Basic validation
+    if (!formData.name.trim() || !formData.phone.trim()) {
+      throw new Error('Name and phone are required');
     }
 
-    if (!/^\d+$/.test(phone)) {
-      throw new Error('Phone number should contain only digits');
+    const payload = {
+      name: formData.name.trim(),
+      phone: formData.phone.trim(),
+      group: user.role === 'admin' ? formData.group : user.group
+    };
+
+    const config = {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    };
+
+    let response;
+    if (editMode) {
+      response = await axios.put(`/api/members/${currentMemberId}`, payload, config);
+    } else {
+      response = await axios.post('/api/members', payload, config);
     }
-
-    const payload = { name, phone, group };
-
-    const response = editMode 
-      ? await axios.put(`/api/members/${currentMemberId}`, payload, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        })
-      : await axios.post('/api/members', payload, {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-        });
 
     setSuccess(editMode ? 'Member updated successfully!' : 'Member added successfully!');
     resetForm();
@@ -123,7 +124,6 @@ const handleSubmit = async (e) => {
     setLoading(false);
   }
 };
-
   const handleEdit = (member) => {
     setFormData({
       name: member.name,
@@ -684,39 +684,11 @@ const Dashboard = () => {
       }
     };
 
-    const fetchReports = async () => {
-      try {
-        const res = await axios.get('/api/reports', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-          params: { month, year }
-        });
-        setReports(res.data);
+ // In your AdminDashboard component
 
-        // If report exists for this month/year, populate the form
-        const existingReport = res.data.find(r => r.month === month && r.year === year);
-        if (existingReport) {
-          const reportData = user.role === 'group_leader' 
-            ? existingReport.leaderReport 
-            : existingReport.deputyReport;
-
-          if (reportData) {
-            const newStatus = {};
-            const newFeedback = {};
-            reportData.contacts.forEach(contact => {
-              newStatus[contact.memberId._id] = contact.contacted;
-              newFeedback[contact.memberId._id] = contact.feedback || '';
-            });
-            setContactStatus(newStatus);
-            setFeedback(newFeedback);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to fetch reports:', err);
-      }
-    };
 
     fetchMembers();
-    fetchReports();
+ 
   }, [month, year, user.role]);
 
   const handleSubmitReport = async () => {
@@ -1049,26 +1021,52 @@ const AdminDashboard = () => {
     fetchReports();
   }, [month, year, selectedGroup]);
 
-  const fetchReports = async () => {
-    try {
-      setLoading(true);
-      const params = { month, year };
-      // Only add group filter if not 'All'
-      if (selectedGroup !== 'All') params.group = selectedGroup;
+const fetchReports = async () => {
+  try {
+    setLoading(true);
+    setError('');
+    
+    const params = new URLSearchParams();
+    params.append('month', month);
+    params.append('year', year);
+    if (selectedGroup !== 'All') params.append('group', selectedGroup);
 
-      const res = await axios.get('/api/reports', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-        params
-      });
-      setReports(res.data || []);
-      setError('');
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to fetch reports');
-      setReports([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const res = await axios.get(`/api/reports?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    });
+
+    // Transform the data for easier display
+    const transformedReports = res.data.map(report => ({
+      ...report,
+      leaderName: report.leaderReport?.leaderId?.name || 'Not submitted',
+      deputyName: report.deputyReport?.leaderId?.name || 'Not submitted',
+      contacts: report.leaderReport?.contacts?.map(leaderContact => {
+        const deputyContact = report.deputyReport?.contacts?.find(
+          c => c.memberId?._id === leaderContact.memberId?._id
+        );
+        return {
+          member: leaderContact.memberId,
+          leader: {
+            contacted: leaderContact.contacted,
+            feedback: leaderContact.feedback
+          },
+          deputy: deputyContact ? {
+            contacted: deputyContact.contacted,
+            feedback: deputyContact.feedback
+          } : null
+        };
+      }) || []
+    }));
+
+    setReports(transformedReports);
+  } catch (err) {
+    console.error('Fetch reports error:', err);
+    setError(err.response?.data?.message || 'Failed to fetch reports');
+    setReports([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -1226,52 +1224,65 @@ const AdminDashboard = () => {
               </Box>
             )}
 
-            {filteredReports.map(report => (
-              <Box key={`${report.month}-${report.year}-${report.group}`} sx={{ mb: 4 }}>
-                <Typography variant="h6" gutterBottom>
-                  {report.month} {report.year} - Group {report.group} ({report.group === 'A' ? 'Mercy Center' : 'Grace Center'})
+           {filteredReports.map(report => (
+  <Box key={report._id} sx={{ mb: 4, p: 3, border: '1px solid #eee', borderRadius: 2 }}>
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+      <Typography variant="h6">
+        {report.month} {report.year} - Group {report.group}
+      </Typography>
+      <Chip 
+        label={report.finalSubmission ? 'Finalized' : 'Pending'} 
+        color={report.finalSubmission ? 'success' : 'warning'} 
+      />
+    </Box>
+
+    <Grid container spacing={2} sx={{ mb: 3 }}>
+      <Grid item xs={12} md={6}>
+        <Typography>
+          <strong>Leader:</strong> {report.leaderName}
+        </Typography>
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <Typography>
+          <strong>Deputy:</strong> {report.deputyName}
+        </Typography>
+      </Grid>
+    </Grid>
+
+    <TableContainer component={Paper}>
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell>Member</TableCell>
+            <TableCell align="center">Leader Contacted</TableCell>
+            <TableCell>Leader Feedback</TableCell>
+            <TableCell align="center">Deputy Contacted</TableCell>
+            <TableCell>Deputy Feedback</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {report.contacts.map((contact, index) => (
+            <TableRow key={contact.member._id || index}>
+              <TableCell>
+                {contact.member.name}
+                <Typography variant="body2" color="text.secondary">
+                  {contact.member.phone}
                 </Typography>
-                
-                <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                  <Typography variant="body2">
-                    <strong>Leader:</strong> {report.leaderReport?.leaderId?.name || 'Not submitted'}
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Deputy:</strong> {report.deputyReport?.leaderId?.name || 'Not submitted'}
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Status:</strong> {report.finalSubmission ? '✅ Finalized' : '⚠️ Pending'}
-                  </Typography>
-                </Box>
-                
-                <TableContainer component={Paper}>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Member</TableCell>
-                        <TableCell>Leader Contacted</TableCell>
-                        <TableCell>Leader Feedback</TableCell>
-                        <TableCell>Deputy Contacted</TableCell>
-                        <TableCell>Deputy Feedback</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {report.leaderReport?.contacts?.map((contact, index) => {
-                        const deputyContact = report.deputyReport?.contacts?.[index];
-                        return (
-                          <TableRow key={contact.memberId._id}>
-                            <TableCell>{contact.memberId.name}</TableCell>
-                            <TableCell>{contact.contacted ? '✅' : '❌'}</TableCell>
-                            <TableCell>{contact.feedback || '-'}</TableCell>
-                            <TableCell>{deputyContact?.contacted ? '✅' : '❌'}</TableCell>
-                            <TableCell>{deputyContact?.feedback || '-'}</TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
+              </TableCell>
+              <TableCell align="center">
+                {contact.leader.contacted ? '✅' : '❌'}
+              </TableCell>
+              <TableCell>{contact.leader.feedback || '-'}</TableCell>
+              <TableCell align="center">
+                {contact.deputy?.contacted ? '✅' : contact.deputy ? '❌' : '-'}
+              </TableCell>
+              <TableCell>{contact.deputy?.feedback || '-'}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  </Box>
             ))}
           </Box>
         ) : (
