@@ -8,7 +8,7 @@ import {
   Select, MenuItem, InputLabel, FormControl, Snackbar, Alert, CircularProgress,
   AppBar, Toolbar, IconButton, Drawer, List, ListItem, ListItemText, Divider,
  Grid, Dialog, DialogTitle, DialogContent, DialogActions,Card,
-  CardContent,Chip
+  CardContent,Chip,Tooltip
 } from '@mui/material';
 
 
@@ -16,7 +16,7 @@ import {
 import { Menu as MenuIcon, BarChart as BarChartIcon, 
   ExitToApp as ExitToAppIcon, Description as DescriptionIcon } from '@mui/icons-material';
 
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Legend } from 'chart.js';
 
 
 import AddIcon from '@mui/icons-material/Add';
@@ -24,10 +24,14 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import RefreshIcon from '@mui/icons-material/Refresh';
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Legend);
 
-// Base URL for API
-axios.defaults.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+// // Base URL for API
+// axios.defaults.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
+axios.defaults.baseURL = process.env.NODE_ENV === 'production' 
+  ? process.env.REACT_APP_API_URL 
+  : 'http://localhost:5000';
 
 const App = () => {
   return (
@@ -43,6 +47,19 @@ const App = () => {
     </Router>
   );
 };
+
+// import React, { useState, useEffect } from 'react';
+// import axios from 'axios';
+// import {
+//   Container, Box, Typography, TextField, Button, Checkbox,
+//   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
+//   Select, MenuItem, InputLabel, FormControl, Snackbar, Alert, CircularProgress,
+//   IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions
+// } from '@mui/material';
+// import AddIcon from '@mui/icons-material/Add';
+// import DeleteIcon from '@mui/icons-material/Delete';
+// import EditIcon from '@mui/icons-material/Edit';
+// import RefreshIcon from '@mui/icons-material/Refresh';
 
 const MemberForm = () => {
   const user = JSON.parse(localStorage.getItem('user'));
@@ -84,46 +101,45 @@ const MemberForm = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-// In your MemberForm component
-
 const handleSubmit = async (e) => {
-  e.preventDefault();
-  try {
-    setLoading(true);
-    setError('');
-    setSuccess('');
+    e.preventDefault();
+    try {
+        setLoading(true);
+        setError('');
+        setSuccess('');
 
-    // Basic validation
-    if (!formData.name.trim() || !formData.phone.trim()) {
-      throw new Error('Name and phone are required');
+        // Basic validation
+        if (!formData.name.trim() || !formData.phone.trim()) {
+            throw new Error('Name and phone are required');
+        }
+
+        const payload = {
+            name: formData.name.trim(),
+            phone: formData.phone.trim(),
+            group: user.role === 'admin' ? formData.group : user.group
+        };
+
+        const config = {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        };
+
+        let response;
+        if (editMode) {
+            response = await axios.put(`/api/members/${currentMemberId}`, payload, config);
+        } else {
+            response = await axios.post('/api/members', payload, config); // Ensure this is correct
+        }
+
+        setSuccess(editMode ? 'Member updated successfully!' : 'Member added successfully!');
+        resetForm();
+        fetchMembers();
+    } catch (err) {
+        setError(err.response?.data?.message || err.message || 'An error occurred');
+    } finally {
+        setLoading(false);
     }
-
-    const payload = {
-      name: formData.name.trim(),
-      phone: formData.phone.trim(),
-      group: user.role === 'admin' ? formData.group : user.group
-    };
-
-    const config = {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    };
-
-    let response;
-    if (editMode) {
-      response = await axios.put(`/api/members/${currentMemberId}`, payload, config);
-    } else {
-      response = await axios.post('/api/members', payload, config);
-    }
-
-    setSuccess(editMode ? 'Member updated successfully!' : 'Member added successfully!');
-    resetForm();
-    fetchMembers();
-  } catch (err) {
-    setError(err.response?.data?.message || err.message || 'An error occurred');
-  } finally {
-    setLoading(false);
-  }
 };
+
   const handleEdit = (member) => {
     setFormData({
       name: member.name,
@@ -183,62 +199,54 @@ const handleSubmit = async (e) => {
         </Box>
         
         <Box component="form" onSubmit={handleSubmit}>
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={4}>
-              <TextField
-                label="Full Name"
-                name="name"
-                fullWidth
-                margin="normal"
-                required
-                value={formData.name}
-                onChange={handleInputChange}
-              />
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <TextField
-                label="Phone Number"
-                name="phone"
-                fullWidth
-                margin="normal"
-                required
-                value={formData.phone}
-                onChange={handleInputChange}
-              />
-            </Grid>
-            <Grid item xs={12} md={4}>
-              <FormControl fullWidth margin="normal" required>
-                <InputLabel>Group</InputLabel>
-                <Select
-                  name="group"
-                  value={formData.group}
-                  label="Group"
-                  onChange={handleInputChange}
-                  disabled={user.role !== 'admin'}
-                >
-                  <MenuItem value="A">Group A (Mercy Center)</MenuItem>
-                  <MenuItem value="B">Group B (Grace Center)</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-          </Grid>
+          <TextField
+            label="Full Name"
+            name="name"
+            fullWidth
+            margin="normal"
+            required
+            value={formData.name}
+            onChange={handleInputChange}
+          />
+          <TextField
+            label="Phone Number"
+            name="phone"
+            fullWidth
+            margin="normal"
+            required
+            value={formData.phone}
+            onChange={handleInputChange}
+          />
+          <FormControl fullWidth margin="normal" required>
+            <InputLabel>Group</InputLabel>
+            <Select
+              name="group"
+              value={formData.group}
+              label="Group"
+              onChange={handleInputChange}
+              disabled={user.role !== 'admin'}
+            >
+              <MenuItem value="A">Group A (Mercy Center)</MenuItem>
+              <MenuItem value="B">Group B (Grace Center)</MenuItem>
+            </Select>
+          </FormControl>
 
           <Box mt={3} display="flex" gap={2}>
             <Button
-  type="submit"
-  variant="contained"
-  disabled={loading}
-  startIcon={!loading && <AddIcon />}
-  sx={{ mt: 2 }}
->
-  {loading ? (
-    <CircularProgress size={24} color="inherit" />
-  ) : editMode ? (
-    'Update Member'
-  ) : (
-    'Add Member'
-  )}
-</Button>
+              type="submit"
+              variant="contained"
+              disabled={loading}
+              startIcon={!loading && <AddIcon />}
+              sx={{ mt: 2 }}
+            >
+              {loading ? (
+                <CircularProgress size={24} color="inherit" />
+              ) : editMode ? (
+                'Update Member'
+              ) : (
+                'Add Member'
+              )}
+            </Button>
             {editMode && (
               <Button
                 variant="outlined"
@@ -348,33 +356,11 @@ const handleSubmit = async (e) => {
           {success}
         </Alert>
       </Snackbar>
-
-      {error && (
-  <Snackbar
-    open={!!error}
-    autoHideDuration={6000}
-    onClose={() => setError('')}
-  >
-    <Alert severity="error" onClose={() => setError('')}>
-      {error}
-    </Alert>
-  </Snackbar>
-)}
-
-{success && (
-  <Snackbar
-    open={!!success}
-    autoHideDuration={3000}
-    onClose={() => setSuccess('')}
-  >
-    <Alert severity="success" onClose={() => setSuccess('')}>
-      {success}
-    </Alert>
-  </Snackbar>
-)}
     </Container>
   );
 };
+
+
 
 const AuthWrapper = () => {
   
@@ -690,33 +676,37 @@ const Dashboard = () => {
     fetchMembers();
  
   }, [month, year, user.role]);
+const handleSubmitReport = async () => {
+  try {
+    setLoading(true);
+    const contacts = members.map(member => ({
+      memberId: member._id,
+      contacted: contactStatus[member._id] || false,
+      feedback: feedback[member._id] || ''
+    }));
 
-  const handleSubmitReport = async () => {
-    try {
-      setLoading(true);
-      const contacts = members.map(member => ({
-        memberId: member._id,
-        contacted: contactStatus[member._id] || false,
-        feedback: feedback[member._id] || ''
-      }));
+    const config = {
+      headers: { 
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+      }
+    };
 
-      await axios.post('/api/reports', {
-        month,
-        year,
-        contacts
-      }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
+    const response = await axios.post('/api/reports', {
+      month,
+      year,
+      contacts
+    }, config);
 
-      setSuccess('Report submitted successfully!');
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      setError(err.response?.data || 'Failed to submit report');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+    setSuccess('Report submitted successfully!');
+    setTimeout(() => setSuccess(''), 3000);
+  } catch (err) {
+    console.error('Report submission error:', err);
+    setError(err.response?.data?.message || err.message || 'Failed to submit report');
+  } finally {
+    setLoading(false);
+  }
+};
   const handleFinalSubmit = async () => {
     try {
       setLoading(true);
