@@ -990,315 +990,409 @@ const handleSubmitReport = async () => {
     </Box>
   );
 };
+
+
+
+// import React, { useState, useEffect } from 'react';
+// import axios from 'axios';
+// import {
+//   Box, AppBar, Toolbar, IconButton, Typography, Drawer, List, ListItem, 
+//   ListItemText, Divider, Container, Paper, Table, TableBody, TableCell, 
+//   TableContainer, TableHead, TableRow, FormControl, Select, MenuItem, 
+//   InputLabel, Snackbar, Alert, CircularProgress, Button, TextField,
+//   Dialog, DialogTitle, DialogContent, DialogActions, Tooltip, Grid, Card, CardContent, Chip
+// } from '@mui/material';
+// import { 
+//   Menu as MenuIcon, 
+//   Add as AddIcon,
+//   Delete as DeleteIcon,
+//   Edit as EditIcon,
+//   Refresh as RefreshIcon
+// } from '@mui/icons-material';
+
 const AdminDashboard = () => {
+  // State for navigation and UI
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('reports');
+  
+  // State for reports
   const [reports, setReports] = useState([]);
+  const [reportMonth, setReportMonth] = useState(new Date().toLocaleString('default', { month: 'long' }));
+  const [reportYear, setReportYear] = useState(new Date().getFullYear());
+  const [reportGroup, setReportGroup] = useState('All');
+  
+  // State for members
+  const [members, setMembers] = useState([]);
+  const [memberGroup, setMemberGroup] = useState('A');
+  const [memberForm, setMemberForm] = useState({
+    name: '',
+    phone: '',
+    group: 'A'
+  });
+  
+  // Common state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [month, setMonth] = useState(new Date().toLocaleString('default', { month: 'long' }));
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [selectedGroup, setSelectedGroup] = useState('All'); // Default to show all groups
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [editMode, setEditMode] = useState(false);
 
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-  const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
-  const groups = ['All', 'A', 'B']; // Added 'All' option
-
+  // Fetch data based on active tab
   useEffect(() => {
-    fetchReports();
-  }, [month, year, selectedGroup]);
+    if (activeTab === 'reports') {
+      fetchReports();
+    } else {
+      fetchMembers();
+    }
+  }, [activeTab, reportMonth, reportYear, reportGroup, memberGroup]);
 
-const fetchReports = async () => {
-  try {
-    setLoading(true);
-    setError('');
-    
-    const params = new URLSearchParams();
-    params.append('month', month);
-    params.append('year', year);
-    if (selectedGroup !== 'All') params.append('group', selectedGroup);
+  const fetchReports = async () => {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      params.append('month', reportMonth);
+      params.append('year', reportYear);
+      if (reportGroup !== 'All') params.append('group', reportGroup);
 
-    const res = await axios.get(`/api/reports?${params.toString()}`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    });
-
-    // Transform the data for easier display
-    const transformedReports = res.data.map(report => ({
-      ...report,
-      leaderName: report.leaderReport?.leaderId?.name || 'Not submitted',
-      deputyName: report.deputyReport?.leaderId?.name || 'Not submitted',
-      contacts: report.leaderReport?.contacts?.map(leaderContact => {
-        const deputyContact = report.deputyReport?.contacts?.find(
-          c => c.memberId?._id === leaderContact.memberId?._id
-        );
-        return {
-          member: leaderContact.memberId,
-          leader: {
-            contacted: leaderContact.contacted,
-            feedback: leaderContact.feedback
-          },
-          deputy: deputyContact ? {
-            contacted: deputyContact.contacted,
-            feedback: deputyContact.feedback
-          } : null
-        };
-      }) || []
-    }));
-
-    setReports(transformedReports);
-  } catch (err) {
-    console.error('Fetch reports error:', err);
-    setError(err.response?.data?.message || 'Failed to fetch reports');
-    setReports([]);
-  } finally {
-    setLoading(false);
-  }
-};
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    window.location.href = '/login';
+      const res = await axios.get(`/api/reports?${params.toString()}`);
+      setReports(res.data);
+    } catch (err) {
+      setError('Failed to fetch reports: ' + (err.message || 'Server error'));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Filter reports by selected group
-  const filteredReports = selectedGroup === 'All' 
-    ? reports 
-    : reports.filter(report => report.group === selectedGroup);
+  const fetchMembers = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get(`/api/members?group=${memberGroup}`);
+      setMembers(res.data);
+    } catch (err) {
+      setError('Failed to fetch members: ' + (err.message || 'Server error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMemberSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      
+      if (editMode) {
+        await axios.put(`/api/members/${itemToDelete}`, memberForm);
+        setSuccess('Member updated successfully!');
+      } else {
+        await axios.post('/api/members', memberForm);
+        setSuccess('Member added successfully!');
+      }
+      
+      setMemberForm({ name: '', phone: '', group: memberGroup });
+      setEditMode(false);
+      fetchMembers();
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Operation failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      setLoading(true);
+      await axios.delete(`/api/members/${itemToDelete}`);
+      setSuccess('Item deleted successfully!');
+      activeTab === 'reports' ? fetchReports() : fetchMembers();
+    } catch (err) {
+      setError('Deletion failed: ' + (err.message || 'Server error'));
+    } finally {
+      setLoading(false);
+      setDeleteConfirmOpen(false);
+    }
+  };
 
   return (
     <Box sx={{ display: 'flex' }}>
+      {/* App Bar */}
       <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
         <Toolbar>
-          <IconButton
-            color="inherit"
-            edge="start"
-            onClick={() => setDrawerOpen(true)}
-            sx={{ mr: 2 }}
-          >
+          <IconButton color="inherit" edge="start" onClick={() => setDrawerOpen(true)} sx={{ mr: 2 }}>
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Admin Dashboard
+            Church Admin Dashboard
           </Typography>
-          <IconButton color="inherit" onClick={handleLogout}>
-            <ExitToAppIcon />
-          </IconButton>
         </Toolbar>
       </AppBar>
 
-      <Drawer
-        anchor="left"
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-      >
+      {/* Navigation Drawer */}
+      <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)}>
         <Box sx={{ width: 250, p: 2 }}>
-          <Typography variant="h6" sx={{ p: 2 }}>
-            Admin Menu
-          </Typography>
+          <Typography variant="h6" sx={{ p: 2 }}>Menu</Typography>
           <Divider />
           <List>
-            <ListItem button onClick={() => setDrawerOpen(false)}>
-              <ListItemText primary="Reports" />
+            <ListItem 
+              button 
+              selected={activeTab === 'reports'}
+              onClick={() => setActiveTab('reports')}
+            >
+              <ListItemText primary="Reports Dashboard" />
+            </ListItem>
+            <ListItem 
+              button 
+              selected={activeTab === 'members'}
+              onClick={() => setActiveTab('members')}
+            >
+              <ListItemText primary="Manage Members" />
             </ListItem>
           </List>
         </Box>
       </Drawer>
 
+      {/* Main Content */}
       <Box component="main" sx={{ flexGrow: 1, p: 3, mt: 8 }}>
-        <Typography variant="h4" gutterBottom>
-          Member Reports
-        </Typography>
-        
-        <Grid container spacing={2} sx={{ mb: 4 }}>
-          <Grid item xs={12} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>Month</InputLabel>
-              <Select
-                value={month}
-                onChange={(e) => setMonth(e.target.value)}
-                label="Month"
-              >
-                {months.map(m => (
-                  <MenuItem key={m} value={m}>{m}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          
-          <Grid item xs={12} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>Year</InputLabel>
-              <Select
-                value={year}
-                onChange={(e) => setYear(e.target.value)}
-                label="Year"
-              >
-                {years.map(y => (
-                  <MenuItem key={y} value={y}>{y}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          
-          <Grid item xs={12} md={3}>
-            <FormControl fullWidth>
-              <InputLabel>Group</InputLabel>
-              <Select
-                value={selectedGroup}
-                onChange={(e) => setSelectedGroup(e.target.value)}
-                label="Group"
-              >
-                {groups.map(g => (
-                  <MenuItem key={g} value={g}>
-                    {g === 'All' ? 'All Groups' : `Group ${g} (${g === 'A' ? 'Mercy' : 'Grace'})`}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </Grid>
-          
-          <Grid item xs={12} md={3} sx={{ display: 'flex', alignItems: 'center' }}>
-            <Button
-              variant="contained"
-              startIcon={<RefreshIcon />}
-              onClick={fetchReports}
-              disabled={loading}
-              fullWidth
-            >
-              Refresh
-            </Button>
-          </Grid>
-        </Grid>
+        {activeTab === 'reports' ? (
+          <>
+            <Typography variant="h4" gutterBottom>Monthly Reports</Typography>
+            
+            {/* Reports filtering controls */}
+            <Grid container spacing={2} sx={{ mb: 4 }}>
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth>
+                  <InputLabel>Month</InputLabel>
+                  <Select
+                    value={reportMonth}
+                    onChange={(e) => setReportMonth(e.target.value)}
+                    label="Month"
+                  >
+                    {['January', 'February', 'March', 'April', 'May', 'June',
+                      'July', 'August', 'September', 'October', 'November', 'December']
+                      .map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Grid>
+              
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth>
+                  <InputLabel>Year</InputLabel>
+                  <Select
+                    value={reportYear}
+                    onChange={(e) => setReportYear(e.target.value)}
+                    label="Year"
+                  >
+                    {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i)
+                      .map(y => <MenuItem key={y} value={y}>{y}</MenuItem>)}
+                  </Select>
+                </FormControl>
+              </Grid>
+              
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth>
+                  <InputLabel>Group</InputLabel>
+                  <Select
+                    value={reportGroup}
+                    onChange={(e) => setReportGroup(e.target.value)}
+                    label="Group"
+                  >
+                    <MenuItem value="All">All Groups</MenuItem>
+                    <MenuItem value="A">Group A (Mercy)</MenuItem>
+                    <MenuItem value="B">Group B (Grace)</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
 
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
-            <CircularProgress />
-          </Box>
-        ) : filteredReports.length > 0 ? (
-          <Box>
-            {selectedGroup === 'All' && (
-              <Box sx={{ mb: 4 }}>
-                <Typography variant="h6">Summary</Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="subtitle1">Group A (Mercy Center)</Typography>
-                        <Typography>
-                          Reports: {reports.filter(r => r.group === 'A').length}
-                        </Typography>
-                        <Typography>
-                          Final Submissions: {reports.filter(r => r.group === 'A' && r.finalSubmission).length}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Card>
-                      <CardContent>
-                        <Typography variant="subtitle1">Group B (Grace Center)</Typography>
-                        <Typography>
-                          Reports: {reports.filter(r => r.group === 'B').length}
-                        </Typography>
-                        <Typography>
-                          Final Submissions: {reports.filter(r => r.group === 'B' && r.finalSubmission).length}
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                </Grid>
-              </Box>
+            {/* Reports content */}
+            {loading ? (
+              <CircularProgress />
+            ) : reports.length > 0 ? (
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Month/Year</TableCell>
+                      <TableCell>Group</TableCell>
+                      <TableCell>Submitted By</TableCell>
+                      <TableCell>Status</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {reports.map(report => (
+                      <TableRow key={report._id}>
+                        <TableCell>{report.month} {report.year}</TableCell>
+                        <TableCell>Group {report.group}</TableCell>
+                        <TableCell>{report.submittedBy || 'System'}</TableCell>
+                        <TableCell>
+                          <Chip 
+                            label={report.finalized ? 'Finalized' : 'Draft'} 
+                            color={report.finalized ? 'success' : 'warning'} 
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            ) : (
+              <Typography>No reports found</Typography>
             )}
-
-           {filteredReports.map(report => (
-  <Box key={report._id} sx={{ mb: 4, p: 3, border: '1px solid #eee', borderRadius: 2 }}>
-    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-      <Typography variant="h6">
-        {report.month} {report.year} - Group {report.group}
-      </Typography>
-      <Chip 
-        label={report.finalSubmission ? 'Finalized' : 'Pending'} 
-        color={report.finalSubmission ? 'success' : 'warning'} 
-      />
-    </Box>
-
-    <Grid container spacing={2} sx={{ mb: 3 }}>
-      <Grid item xs={12} md={6}>
-        <Typography>
-          <strong>Leader:</strong> {report.leaderName}
-        </Typography>
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <Typography>
-          <strong>Deputy:</strong> {report.deputyName}
-        </Typography>
-      </Grid>
-    </Grid>
-
-    <TableContainer component={Paper}>
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>Member</TableCell>
-            <TableCell align="center">Leader Contacted</TableCell>
-            <TableCell>Leader Feedback</TableCell>
-            <TableCell align="center">Deputy Contacted</TableCell>
-            <TableCell>Deputy Feedback</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {report.contacts.map((contact, index) => (
-            <TableRow key={contact.member._id || index}>
-              <TableCell>
-                {contact.member.name}
-                <Typography variant="body2" color="text.secondary">
-                  {contact.member.phone}
-                </Typography>
-              </TableCell>
-              <TableCell align="center">
-                {contact.leader.contacted ? '✅' : '❌'}
-              </TableCell>
-              <TableCell>{contact.leader.feedback || '-'}</TableCell>
-              <TableCell align="center">
-                {contact.deputy?.contacted ? '✅' : contact.deputy ? '❌' : '-'}
-              </TableCell>
-              <TableCell>{contact.deputy?.feedback || '-'}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
-  </Box>
-            ))}
-          </Box>
+          </>
         ) : (
-          <Typography sx={{ mt: 4 }}>
-            No reports found for {month} {year} {selectedGroup !== 'All' ? `in Group ${selectedGroup}` : ''}
-          </Typography>
+          <>
+            {/* Members Management */}
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+              <Typography variant="h4">Member Management</Typography>
+              <FormControl sx={{ minWidth: 120 }}>
+                <Select
+                  value={memberGroup}
+                  onChange={(e) => setMemberGroup(e.target.value)}
+                >
+                  <MenuItem value="A">Group A (Mercy)</MenuItem>
+                  <MenuItem value="B">Group B (Grace)</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+
+            {/* Member Form */}
+            <Paper elevation={3} sx={{ p: 4, mb: 4 }}>
+              <Typography variant="h5" gutterBottom>
+                {editMode ? 'Edit Member' : 'Add New Member'}
+              </Typography>
+              
+              <Box component="form" onSubmit={handleMemberSubmit}>
+                <TextField
+                  label="Full Name"
+                  name="name"
+                  fullWidth
+                  margin="normal"
+                  required
+                  value={memberForm.name}
+                  onChange={(e) => setMemberForm({...memberForm, name: e.target.value})}
+                />
+                <TextField
+                  label="Phone Number"
+                  name="phone"
+                  fullWidth
+                  margin="normal"
+                  required
+                  value={memberForm.phone}
+                  onChange={(e) => setMemberForm({...memberForm, phone: e.target.value})}
+                />
+                
+                <Box mt={3} display="flex" gap={2}>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={loading}
+                    startIcon={!loading && <AddIcon />}
+                  >
+                    {loading ? <CircularProgress size={24} /> : editMode ? 'Update' : 'Add Member'}
+                  </Button>
+                  {editMode && (
+                    <Button
+                      variant="outlined"
+                      onClick={() => {
+                        setMemberForm({ name: '', phone: '', group: memberGroup });
+                        setEditMode(false);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                </Box>
+              </Box>
+            </Paper>
+
+            {/* Members List */}
+            <Paper elevation={3} sx={{ p: 4 }}>
+              <Typography variant="h5" gutterBottom>
+                {memberGroup === 'A' ? 'Mercy Center' : 'Grace Center'} Members
+              </Typography>
+              
+              {loading ? (
+                <CircularProgress />
+              ) : members.length > 0 ? (
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Name</TableCell>
+                        <TableCell>Phone</TableCell>
+                        <TableCell align="right">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {members.map(member => (
+                        <TableRow key={member._id}>
+                          <TableCell>{member.name}</TableCell>
+                          <TableCell>{member.phone}</TableCell>
+                          <TableCell align="right">
+                            <Tooltip title="Edit">
+                              <IconButton
+                                onClick={() => {
+                                  setMemberForm({
+                                    name: member.name,
+                                    phone: member.phone,
+                                    group: member.group
+                                  });
+                                  setEditMode(true);
+                                  setItemToDelete(member._id);
+                                }}
+                              >
+                                <EditIcon />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete">
+                              <IconButton
+                                color="error"
+                                onClick={() => {
+                                  setItemToDelete(member._id);
+                                  setDeleteConfirmOpen(true);
+                                }}
+                              >
+                                <DeleteIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Typography>No members found in this group</Typography>
+              )}
+            </Paper>
+          </>
         )}
 
-        <Snackbar
-          open={!!error}
-          autoHideDuration={6000}
-          onClose={() => setError('')}
-        >
-          <Alert severity="error" onClose={() => setError('')}>
-            {error}
-          </Alert>
-        </Snackbar>
+        {/* Common Dialog and Snackbars */}
+        <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
+          <DialogTitle>Confirm Delete</DialogTitle>
+          <DialogContent>
+            Are you sure you want to delete this {activeTab === 'reports' ? 'report' : 'member'}?
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={handleDelete} 
+              color="error"
+              variant="contained"
+              disabled={loading}
+            >
+              {loading ? <CircularProgress size={24} /> : 'Delete'}
+            </Button>
+          </DialogActions>
+        </Dialog>
 
-        <Snackbar
-          open={!!success}
-          autoHideDuration={3000}
-          onClose={() => setSuccess('')}
-        >
-          <Alert severity="success" onClose={() => setSuccess('')}>
-            {success}
-          </Alert>
+        <Snackbar open={!!error} autoHideDuration={6000} onClose={() => setError('')}>
+          <Alert severity="error" onClose={() => setError('')}>{error}</Alert>
+        </Snackbar>
+        
+        <Snackbar open={!!success} autoHideDuration={3000} onClose={() => setSuccess('')}>
+          <Alert severity="success" onClose={() => setSuccess('')}>{success}</Alert>
         </Snackbar>
       </Box>
     </Box>
