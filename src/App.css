@@ -1,60 +1,169 @@
+/* Global Styles */
+:root {
+  --primary-color: #4361ee;
+  --secondary-color: #3f37c9;
+  --accent-color: #4895ef;
+  --danger-color: #f72585;
+  --success-color: #4cc9f0;
+  --light-color: #f8f9fa;
+  --dark-color: #212529;
+  --gray-color: #6c757d;
+}
+
 body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  padding: 0;
+  background-color: #f5f7fa;
+  color: var(--dark-color);
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
-}
-
-/* Offline warning */
-.offline-warning {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background: #ff9800;
-  color: white;
-  padding: 10px 20px;
-  border-radius: 4px;
-  z-index: 1000;
-}
-
-/* Loading spinner */
-.loading-spinner {
+/* App Container */
+.app-container {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100px;
+  min-height: 100vh;
 }
 
-/* Form styles */
-.form-container {
-  max-width: 600px;
-  margin: 0 auto;
+/* Main Content */
+.main-content {
+  flex: 1;
   padding: 20px;
+  margin-top: 64px;
 }
 
-/* Responsive tables */
-@media (max-width: 600px) {
-  .table-responsive {
-    overflow-x: auto;
-  }
+/* Paper/Card Styles */
+.paper-container {
+  border-radius: 12px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+  padding: 24px;
+  margin-bottom: 24px;
+  background-color: white;
 }
 
-/* Print styles */
-@media print {
-  .no-print {
-    display: none !important;
+/* Typography */
+.page-title {
+  font-weight: 600 !important;
+  margin-bottom: 24px !important;
+  color: var(--primary-color);
+}
+
+.section-title {
+  font-weight: 500 !important;
+  margin-bottom: 16px !important;
+}
+
+/* Buttons */
+.primary-button {
+  background-color: var(--primary-color) !important;
+  color: white !important;
+  font-weight: 500 !important;
+  text-transform: none !important;
+  padding: 8px 16px !important;
+  border-radius: 8px !important;
+}
+
+.primary-button:hover {
+  background-color: var(--secondary-color) !important;
+}
+
+.danger-button {
+  background-color: var(--danger-color) !important;
+  color: white !important;
+}
+
+.secondary-button {
+  background-color: var(--gray-color) !important;
+  color: white !important;
+}
+
+/* Form Elements */
+.form-control {
+  margin-bottom: 16px !important;
+}
+
+/* Table Styles */
+.data-table {
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+.data-table .MuiTableCell-head {
+  font-weight: 600 !important;
+  background-color: #f8f9fa;
+}
+
+.data-table .MuiTableCell-body {
+  padding: 12px 16px !important;
+}
+
+/* Responsive Layout */
+@media (max-width: 768px) {
+  .main-content {
+    padding: 16px;
   }
   
-  body {
-    padding: 0;
-    margin: 0;
-    background: white;
+  .paper-container {
+    padding: 16px;
   }
+  
+  .filter-container {
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+/* Status Chips */
+.chip-pending {
+  background-color: #fff3cd !important;
+  color: #856404 !important;
+}
+
+.chip-completed {
+  background-color: #d4edda !important;
+  color: #155724 !important;
+}
+
+/* Dashboard Specific */
+.member-row {
+  transition: background-color 0.2s;
+}
+
+.member-row:hover {
+  background-color: rgba(67, 97, 238, 0.05);
+}
+
+.submit-btn {
+  min-width: 120px;
+}
+
+.submitted-btn {
+  background-color: var(--success-color) !important;
+  color: white !important;
+}
+
+/* Admin Dashboard */
+.group-filter {
+  margin-left: auto;
+}
+
+/* Login/Register Forms */
+.auth-container {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.auth-title {
+  text-align: center;
+  margin-bottom: 24px !important;
+  color: var(--primary-color);
+}
+
+.auth-form {
+  margin-top: 16px;
+}
+
+.auth-link {
+  text-align: center;
+  margin-top: 16px;
 }
